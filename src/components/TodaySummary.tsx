@@ -1,0 +1,70 @@
+import type { DayRecord } from "../domain/dayEntries";
+import { buildTodaySummary, type DaySummary } from "../domain/summary";
+import type { PatternTimeline } from "../domain/patternHistory";
+import { formatDateTitle } from "./DayScreen";
+import { useShiftLabels } from "./ShiftLabelsContext";
+
+const LABELS = ["오늘", "내일"];
+
+interface Props {
+  timeline: PatternTimeline;
+  today: string;
+  days: Record<string, DayRecord>;
+  onSelectDate(date: string): void;
+}
+
+function cardLabel(summary: DaySummary, label: string, shiftName: string | null): string {
+  return [
+    label,
+    formatDateTitle(summary.date),
+    shiftName ?? "근무 패턴 없음",
+    summary.overridden ? "바뀐 근무" : null,
+    ...summary.holidays,
+    summary.timeRange,
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
+/**
+ * 달력 화면 위쪽의 오늘·내일 근무 요약. 보고 있는 달과 무관하게 항상 오늘 기준이며,
+ * props에서 매 렌더 계산하므로 날짜·데이터가 바뀌면 자동으로 갱신된다.
+ */
+export function TodaySummary({ timeline, today, days, onSelectDate }: Props) {
+  const shiftLabels = useShiftLabels();
+  const summaries = buildTodaySummary(today, timeline, days);
+
+  return (
+    <div className="today-summary" aria-label="오늘과 내일 근무">
+      {summaries.map((summary, index) => {
+        const labels = summary.shift ? shiftLabels[summary.shift] : null;
+        return (
+          <button
+            key={summary.date}
+            type="button"
+            className={`today-card${index === 0 ? " is-today" : ""}`}
+            data-date={summary.date}
+            aria-label={cardLabel(summary, LABELS[index], labels?.name ?? null)}
+            onClick={() => onSelectDate(summary.date)}
+          >
+            <span className="today-card-head">
+              <span className="today-card-label">{LABELS[index]}</span>
+              <span className="today-card-date">{formatDateTitle(summary.date)}</span>
+            </span>
+            <span className="today-card-shift">
+              {labels && summary.shift && (
+                <span className={`today-card-badge shift-${summary.shift}`}>{labels.short}</span>
+              )}
+              <span className={`today-card-name${labels ? "" : " is-none"}`}>{labels?.name ?? "근무 패턴 없음"}</span>
+              {summary.overridden && <span className="today-card-changed">바뀐 근무</span>}
+            </span>
+            {summary.holidays.length > 0 && (
+              <span className="today-card-holiday">{summary.holidays.join(" · ")}</span>
+            )}
+            {summary.timeRange && <span className="today-card-time">{summary.timeRange}</span>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
